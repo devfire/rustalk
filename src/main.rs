@@ -1,44 +1,46 @@
-use std::error::Error;
-use std::net::{SocketAddr, SocketAddrV4, Ipv4Addr};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use clap::{App, Arg};
-use tokio::prelude::*;
-use tokio::{task, signal};
-use tokio::net::{UdpSocket, udp::{SendHalf, RecvHalf}};
+use errors::AppError;
+use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use tokio::net::{
+    udp::{RecvHalf, SendHalf},
+    UdpSocket,
+};
 
-const DEFAULT_USERNAME: &str = "Anonymous";
-const DEFAULT_PORT: &str = "50692";
-const DEFAULT_MULTICAST: &str = "239.255.42.98";
+use tokio::{signal, task};
+
+mod errors;
+
+// const DEFAULT_USERNAME: &str = "Anonymous";
+// const DEFAULT_PORT: &str = "1";
+// const DEFAULT_MULTICAST: &str = "29.255.42.98";
 const IP_ALL: [u8; 4] = [0, 0, 0, 0];
 
 /// Bind socket to multicast address with IP_MULTICAST_LOOP and SO_REUSEADDR Enabled
 fn bind_multicast(
     addr: &SocketAddrV4,
     multi_addr: &SocketAddrV4,
-) -> Result<std::net::UdpSocket, Box<dyn Error>> {
-    use socket2::{Domain, Type, Protocol, Socket};
+) -> Result<std::net::UdpSocket, AppError> {
+    use socket2::{Domain, Protocol, Socket, Type};
 
-    assert!(multi_addr.ip().is_multicast(), "Must be multcast address");
+    // assert!(multi_addr.ip().is_multicast(), "Must be multcast address");
 
-    let socket = Socket::new(
-        Domain::ipv4(),
-        Type::dgram(),
-        Some(Protocol::udp()),
-    )?;
+    // if !multi_addr.ip().is_multicast() {
+    //     return Err(AppError::BindError(String::from("Invalid multicast, sorry")))
+    // }
+    let socket = Socket::new(Domain::ipv4(), Type::dgram(), Some(Protocol::udp()))?;
 
     socket.set_reuse_address(true)?;
     socket.bind(&socket2::SockAddr::from(*addr))?;
     socket.set_multicast_loop_v4(true)?;
-    socket.join_multicast_v4(
-        multi_addr.ip(),
-        addr.ip(),
-    )?;
+    socket.join_multicast_v4(multi_addr.ip(), addr.ip())?;
 
     Ok(socket.into_udp_socket())
 }
 
 /// Receive bytes from UPD socket and write to stdout until EOF.
-async fn receive(mut rx: RecvHalf) -> Result<(), Box<dyn Error + Send + Sync>> {
+async fn receive(mut rx: RecvHalf) -> Result<(), AppError> {
     let mut buffer = vec![0u8; 4096];
     let mut stdout = io::stdout();
 
@@ -58,7 +60,7 @@ async fn transmit(
     mut tx: SendHalf,
     addr: SocketAddr,
     mut username: String,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
+) -> Result<(), AppError> {
     username.push_str(": ");
     let mut buffer = username.into_bytes();
     let l = buffer.len();
@@ -77,39 +79,44 @@ async fn transmit(
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+async fn main() -> Result<(), AppError> {
     let matches = App::new("Udp Multicast Chat")
         .version("0.1.0")
         .author("Henning Ottesen <henning@live.no>")
         .about("Example UDP multicast CLI chat client using Tokio")
-        .arg(Arg::with_name("port")
-            .short("p")
-            .long("port")
-            .value_name("PORT")
-            .takes_value(true)
-            .default_value(DEFAULT_PORT)
-            .help("Sets UDP port number"))
-        .arg(Arg::with_name("ip")
-            .short("i")
-            .long("ip")
-            .value_name("IP")
-            .takes_value(true)
-            .default_value(DEFAULT_MULTICAST)
-            .help("Sets multicast IP"))
-        .arg(Arg::with_name("username")
-            .short("u")
-            .long("username")
-            .value_name("NAME")
-            .takes_value(true)
-            .default_value(DEFAULT_USERNAME)
-            .help("Sets username"))
+        .arg(
+            Arg::with_name("port")
+                .short("p")
+                .long("port")
+                .value_name("PORT")
+                .takes_value(true)
+                .help("Sets UDP port number"),
+        )
+        .arg(
+            Arg::with_name("ip")
+                .short("i")
+                .long("ip")
+                .value_name("IP")
+                .takes_value(true)
+                .help("Sets multicast IP"),
+        )
+        .arg(
+            Arg::with_name("username")
+                .short("u")
+                .long("usernause tokio::prelude::*;me")
+                .value_name("NAME")
+                .takes_value(true)
+                .help("Sets username"),
+        )
         .get_matches();
 
-    let username = matches.value_of("username")
-        .unwrap()
+    let username = matches
+        .value_of("username")
+        .expect("Missing username")
         .to_owned();
 
-    let port = matches.value_of("port")
+    let port = matches
+        .value_of("port")
         .unwrap()
         .parse::<u16>()
         .expect("Invalid port number");
@@ -117,7 +124,8 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let addr = SocketAddrV4::new(IP_ALL.into(), port);
 
     let multi_addr = SocketAddrV4::new(
-        matches.value_of("ip")
+        matches
+            .value_of("ip")
             .unwrap()
             .parse::<Ipv4Addr>()
             .expect("Invalid IP"),
@@ -127,13 +135,13 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     println!("Starting server on: {}", addr);
     println!("Multicast address: {}\n", multi_addr);
 
-    let std_socket = bind_multicast(&addr, &multi_addr)
-        .expect("Failed to bind multicast socket");
+    let std_socket = bind_multicast(&addr, &multi_addr)?;
 
-    let socket = UdpSocket::from_std(std_socket).unwrap();
+    let socket = UdpSocket::from_std(std_socket)?;
     let (udp_rx, udp_tx) = socket.split();
 
     tokio::select! {
+
         res = task::spawn(async move { receive(udp_rx).await }) => {
             res.map_err(|e| e.into()).and_then(|e| e)
         },
