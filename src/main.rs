@@ -1,9 +1,8 @@
-use std::error::Error;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use clap::{App, Arg};
 use errors::AppError;
-use tokio::io::{AsyncReadExt, self, AsyncWriteExt};
+use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{
     udp::{RecvHalf, SendHalf},
     UdpSocket,
@@ -19,7 +18,10 @@ mod errors;
 const IP_ALL: [u8; 4] = [0, 0, 0, 0];
 
 /// Bind socket to multicast address with IP_MULTICAST_LOOP and SO_REUSEADDR Enabled
-fn bind_multicast(addr: &SocketAddrV4, multi_addr: &SocketAddrV4) -> Result<std::net::UdpSocket, AppError> {
+fn bind_multicast(
+    addr: &SocketAddrV4,
+    multi_addr: &SocketAddrV4,
+) -> Result<std::net::UdpSocket, AppError> {
     use socket2::{Domain, Protocol, Socket, Type};
 
     // assert!(multi_addr.ip().is_multicast(), "Must be multcast address");
@@ -38,7 +40,7 @@ fn bind_multicast(addr: &SocketAddrV4, multi_addr: &SocketAddrV4) -> Result<std:
 }
 
 /// Receive bytes from UPD socket and write to stdout until EOF.
-async fn receive(mut rx: RecvHalf) -> Result<(), Box<dyn Error + Send + Sync>> {
+async fn receive(mut rx: RecvHalf) -> Result<(), AppError> {
     let mut buffer = vec![0u8; 4096];
     let mut stdout = io::stdout();
 
@@ -58,7 +60,7 @@ async fn transmit(
     mut tx: SendHalf,
     addr: SocketAddr,
     mut username: String,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
+) -> Result<(), AppError> {
     username.push_str(": ");
     let mut buffer = username.into_bytes();
     let l = buffer.len();
@@ -77,7 +79,7 @@ async fn transmit(
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+async fn main() -> Result<(), AppError> {
     let matches = App::new("Udp Multicast Chat")
         .version("0.1.0")
         .author("Henning Ottesen <henning@live.no>")
@@ -101,14 +103,17 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         .arg(
             Arg::with_name("username")
                 .short("u")
-                .long("username")
+                .long("usernause tokio::prelude::*;me")
                 .value_name("NAME")
                 .takes_value(true)
                 .help("Sets username"),
         )
         .get_matches();
 
-    let username = matches.value_of("username").unwrap().to_owned();
+    let username = matches
+        .value_of("username")
+        .expect("Missing username")
+        .to_owned();
 
     let port = matches
         .value_of("port")
@@ -136,6 +141,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let (udp_rx, udp_tx) = socket.split();
 
     tokio::select! {
+
         res = task::spawn(async move { receive(udp_rx).await }) => {
             res.map_err(|e| e.into()).and_then(|e| e)
         },
