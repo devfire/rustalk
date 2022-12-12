@@ -1,7 +1,7 @@
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{SocketAddr, SocketAddrV4};
 
-use clap::{App, Arg};
 use errors::AppError;
+
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{
     udp::{RecvHalf, SendHalf},
@@ -11,6 +11,7 @@ use tokio::net::{
 use tokio::{signal, task};
 
 mod errors;
+mod options;
 
 // const DEFAULT_USERNAME: &str = "Anonymous";
 // const DEFAULT_PORT: &str = "1";
@@ -80,57 +81,15 @@ async fn transmit(
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
-    let matches = App::new("Udp Multicast Chat")
-        .version("0.1.0")
-        .author("Henning Ottesen <henning@live.no>")
-        .about("Example UDP multicast CLI chat client using Tokio")
-        .arg(
-            Arg::with_name("port")
-                .short("p")
-                .long("port")
-                .value_name("PORT")
-                .takes_value(true)
-                .help("Sets UDP port number"),
-        )
-        .arg(
-            Arg::with_name("ip")
-                .short("i")
-                .long("ip")
-                .value_name("IP")
-                .takes_value(true)
-                .help("Sets multicast IP"),
-        )
-        .arg(
-            Arg::with_name("username")
-                .short("u")
-                .long("usernause tokio::prelude::*;me")
-                .value_name("NAME")
-                .takes_value(true)
-                .help("Sets username"),
-        )
-        .get_matches();
+    // Parse the arguments coming in from the CLI
+    let cli = <options::Cli as clap::Parser>::parse();
 
-    let username = matches
-        .value_of("username")
-        .expect("Missing username")
-        .to_owned();
-
-    let port = matches
-        .value_of("port")
-        .unwrap()
-        .parse::<u16>()
-        .expect("Invalid port number");
+    let username = cli.username;
+    let port = cli.port;
 
     let addr = SocketAddrV4::new(IP_ALL.into(), port);
 
-    let multi_addr = SocketAddrV4::new(
-        matches
-            .value_of("ip")
-            .unwrap()
-            .parse::<Ipv4Addr>()
-            .expect("Invalid IP"),
-        port,
-    );
+    let multi_addr = SocketAddrV4::new(cli.multicast, port);
 
     println!("Starting server on: {}", addr);
     println!("Multicast address: {}\n", multi_addr);
