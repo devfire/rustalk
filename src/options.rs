@@ -11,7 +11,7 @@ pub struct Cli {
     pub(crate) multicast: std::net::Ipv4Addr,
 
     // NOTE: if a default value is needed use value_name = "DEFAULT_VALUE"
-    /// Sets a custom log file
+    /// Sets the UDP port
     #[arg(short, long,required = true)]
     pub(crate) port: u16,
 

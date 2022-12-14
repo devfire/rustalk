@@ -1,5 +1,6 @@
-use std::net::{SocketAddr, SocketAddrV4};
+use std::net::{SocketAddr, SocketAddrV4, Ipv4Addr};
 
+use clap::Parser;
 use errors::AppError;
 
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
@@ -8,12 +9,12 @@ use tokio::net::{
     UdpSocket,
 };
 
-use tokio::{signal, task};
+use tokio::task;
+
+use crate::options::Cli;
 
 mod errors;
 mod options;
-
-const IP_ALL: [u8; 4] = [0, 0, 0, 0];
 
 /// Bind socket to multicast address with IP_MULTICAST_LOOP and SO_REUSEADDR Enabled
 fn bind_multicast(
@@ -74,12 +75,13 @@ async fn transmit(
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
     // Parse the arguments coming in from the CLI
-    let cli = <options::Cli as clap::Parser>::parse();
+    let cli = Cli::parse();
 
     let username = cli.username;
     let port = cli.port;
+    let ip: Ipv4Addr = cli.ip;
 
-    let addr = SocketAddrV4::new(IP_ALL.into(), port);
+    let addr = SocketAddrV4::new(ip, port);
 
     let multi_addr = SocketAddrV4::new(cli.multicast, port);
 
@@ -99,10 +101,5 @@ async fn main() -> Result<(), AppError> {
         res = task::spawn(async move { transmit(udp_tx, multi_addr.into(), username).await }) => {
             res.map_err(|e| e.into()).and_then(|e| e)
         },
-        // You have to press Enter after pressing Ctrl+C for the program to terminate.
-        // https://docs.rs/tokio/0.2.21/tokio/io/fn.stdin.html
-        res = signal::ctrl_c() => {
-            res.map_err(|e| e.into())
-        }
     }
 }
