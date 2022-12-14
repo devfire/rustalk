@@ -13,9 +13,6 @@ use tokio::{signal, task};
 mod errors;
 mod options;
 
-// const DEFAULT_USERNAME: &str = "Anonymous";
-// const DEFAULT_PORT: &str = "1";
-// const DEFAULT_MULTICAST: &str = "29.255.42.98";
 const IP_ALL: [u8; 4] = [0, 0, 0, 0];
 
 /// Bind socket to multicast address with IP_MULTICAST_LOOP and SO_REUSEADDR Enabled
@@ -25,11 +22,6 @@ fn bind_multicast(
 ) -> Result<std::net::UdpSocket, AppError> {
     use socket2::{Domain, Protocol, Socket, Type};
 
-    // assert!(multi_addr.ip().is_multicast(), "Must be multcast address");
-
-    // if !multi_addr.ip().is_multicast() {
-    //     return Err(AppError::BindError(String::from("Invalid multicast, sorry")))
-    // }
     let socket = Socket::new(Domain::ipv4(), Type::dgram(), Some(Protocol::udp()))?;
 
     socket.set_reuse_address(true)?;
@@ -50,7 +42,7 @@ async fn receive(mut rx: RecvHalf) -> Result<(), AppError> {
         if n == 0 {
             break;
         }
-        stdout.write_all(&mut buffer[..n]).await?;
+        stdout.write_all(&buffer[..n]).await?;
     }
 
     Ok(())
@@ -73,7 +65,7 @@ async fn transmit(
         if n == 0 {
             break;
         }
-        tx.send_to(&mut buffer[..l + n], &addr).await?;
+        tx.send_to(&buffer[..l + n], &addr).await?;
     }
 
     Ok(())
