@@ -105,9 +105,8 @@
 // }
 
 use std::net::Ipv4Addr;
-
 use tokio::net::UdpSocket;
-
+use tokio::io::AsyncWriteExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -115,7 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let multicast: Ipv4Addr = Ipv4Addr::new(224,0,0,1);
     let local_address: Ipv4Addr = Ipv4Addr::new(0,0,0,0);
     // Bind the socket to the specified multicast address and port.
-    let socket = UdpSocket::bind("224.0.0.1:9999").await?;
+    let socket = UdpSocket::bind("0.0.0.0:9999").await?;
 
     // Join the multicast group to start receiving messages.
     socket.join_multicast_v4(multicast, local_address)?;
@@ -124,10 +123,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // socket.set_nonblocking(true).unwrap();
 
 
+    let mut stdout = tokio::io::stdout();
     // Read messages from the socket.
     let mut buf = [0; 1024];
     loop {
         let (nbytes, _) = socket.recv_from(&mut buf).await?;
         println!("Received {} bytes", nbytes);
+        stdout.write_all(&buf[..1024]).await?;
     }
 }
